@@ -1,0 +1,31 @@
+---
+version: 2.1
+
+
+# Command definitions
+#commands:
+    
+
+# Job definitions
+jobs:
+  lint-code:
+    docker:
+      - image: python:3.7.3-stretch #ubuntu:18.04
+    steps:
+      - checkout
+      - run:
+          name: Setup lint environment
+          command: |
+            make setup
+      - run:
+          name: Run lint checks
+          command: |
+            make lint
+
+
+# Workflow definitions
+workflows:
+  deploy:
+    jobs:
+      - lint-code
+      
