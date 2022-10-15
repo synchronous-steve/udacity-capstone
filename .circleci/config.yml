@@ -22,15 +22,50 @@ jobs:
   
   build-docker-image:
     docker:
-      - image: cimg/base:2022.10  
+      - image: cimg/aws:2022.09.1 #cimg/base:2022.10
+        #user: root
     steps:
       - checkout
+      
       - setup_remote_docker:
           version: 20.10.18
           #docker_layer_caching: true # cost per run
+      
+      #- run:
+      #    name: Install aws
+      #    command: |
+            
+      
+      # Build image and list built image thereafter    
       - run: |
-          docker build -t circleci_id .
-          docker image ls | grep circleci_id
+          sudo docker build -t cap-test .
+          sudo docker image ls | grep cap-test
+          
+      # run the container detatched and list running container
+      - run: |
+          sudo docker run -d --name cap-app-test -p 8000:80 cap-test
+          sudo docker ps
+          
+      # Check the container is running OK and retuns a 220 response    
+      - run: |
+          SERVICE_STATUS=$(sudo docker exec cap-app-test curl -I -s -o /dev/null -w "%{http_code}" --retry 4 --retry-connrefused http://localhost:80)
+          
+          if [ "${SERVICE_STATUS}" == '200' ]
+            then
+              echo "Success code 200 received"
+          else
+            echo "Service test failed"
+            exit 1
+          fi
+      
+      # push the image to ECR registry
+      - run: | 
+          aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 053645246680.dkr.ecr.us-east-1.amazonaws.com
+          sudo docker tag cap-test:latest 053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+          sudo docker push 053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+      
+      
+        
 
 
 # Workflow definitions
