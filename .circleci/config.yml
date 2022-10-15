@@ -1,11 +1,9 @@
 ---
 version: 2.1
 
-
 # Command definitions
 #commands:
     
-
 # Job definitions
 jobs:
   lint-code:
@@ -21,6 +19,18 @@ jobs:
           name: Run lint checks
           command: |
             make lint
+  
+  build-docker-image:
+    docker:
+      - image: cimg/base:2022.10  
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 20.10.18
+          #docker_layer_caching: true # cost per run
+      - run: |
+          docker build -t circleci_id .
+          docker image ls | grep circleci_id
 
 
 # Workflow definitions
@@ -28,4 +38,5 @@ workflows:
   deploy:
     jobs:
       - lint-code
+      - build-docker-image
       
