@@ -1,0 +1,14 @@
+---
+  - name: "EKS Cluster Creation Playbook"
+    hosts: localhost
+    #connection: local 
+    
+    tasks:
+    - set_fact:
+        cluster_suffix: "{{ lookup('env', '${CIRCLE_WORKFLOW_ID:0:7}')}}"  # 
+
+    - name: "create cluster"
+      shell: "eksctl create cluster --name deployment_{{cluster_suffix}} --nodes=2 --region us-east-1 --zones us-east-1a,us-east-1b,us-east-1c"
+      register: "output"
+
+    - debug: var=output.stdout_lines
