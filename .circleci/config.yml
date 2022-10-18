@@ -2,19 +2,31 @@
 version: 2.1
 
 # Command definitions
-#commands:
-  # destroy-environment:
-  #   description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
-  #   parameters:
-  #     run_when:
-  #       type: string
-  #       default: on_fail
-  #   steps:
-  #     - run:
-  #         name: Delete namespace (should destroy all child objects)
-  #         when: << parameters.run_when >>
-  #         command: |
-  #           kubectl delete ns -n udacity-capstone
+commands:
+  destroy-environment:
+    description: Destroy cluster and any deployed workloads
+    parameters:
+      run_when:
+        type: string
+        default: on_fail
+      cluster_name:
+        type: string
+    steps:
+      - run:
+          name: Configure kubce config for target cluster
+          command: |
+            echo << parameters.cluster_name >>
+            aws eks --region us-east-1 update-kubeconfig --name << parameters.cluster_name >>
+      - run:
+          name: Delete namespace (should destroy all child objects)
+          when: << parameters.run_when >>
+          command: |
+            kubectl delete ns -n udacity-capstone
+      - run:
+          name: Delete EKS cluster
+          when: << parameters.run_when >>
+          command: |
+            eksctl delete cluster --name << parameters.cluster_name >>
     
 # Job definitions
 jobs:
@@ -84,12 +96,13 @@ jobs:
           command: |
             sudo apt-get update
             echo "installing Ansible"
-            sudo apt-get install ansible -y #apk add --update ansible
-            # cat .circleci/ansible/inventory.txt
-      # - run:
-      #     name: Export Suffix for Cluster ID
-      #     command: |
-      #       export CLUSTER_SUFFIX='${CIRCLE_WORKFLOW_ID:0:7}'
+            sudo apt-get install ansible -y
+      - run:
+          name: Record name of existing cluster
+          command: |
+            EXISTING_CLUSTER=$(aws eks list-clusters | jq -r '.clusters[]|select(. | startswith("capstone-cluster-"))')
+            echo "Existing cluster name: ${EXISTING_CLUSTER}"
+            curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername" -d "${EXISTING_CLUSTER}"
       - run:
           name: Create EKS cluster using eksctl tool
           no_output_timeout: 25m
@@ -100,19 +113,39 @@ jobs:
       - run:
           name: List cluster nodes
           command: |
-            #aws eks --region us-east-1 update-kubeconfig --name deployment-${CIRCLE_WORKFLOW_ID}
+            #aws eks --region us-east-1 update-kubeconfig --name capstone-cluster-${CIRCLE_WORKFLOW_ID}
             kubectl get nodes
       # Deploy application to EKS cluster      
       - run:
           name: Deploy k8s manifests to cluster
           command: |
+            NS_WAIT=3
+
+            kubectl apply -f k8s_manifests/namespace.yml
+
+            while [ $(kubectl get ns udacity-capstone -o jsonpath='{.status.phase}') != "Active" ] && [ $attempts -lt 2 ]
+            do 
+                attempts=$((attempts+1))
+                echo "waiting for application namespace to be ready"
+                sleep 5
+            done
+
             kubectl apply -f k8s_manifests/
             kubectl -n udacity-capstone rollout status deployment capstone-project
 
-      # Destroy infrastructure and revert migration on failure
-      # - destroy-environment:
-      #     run_when: on_fail
+      - run:
+          name: Record name of load balancer endpoint
+          command: |
+            SVC_ENDPOINT=$(kubectl -n udacity-capstone get svc -o json \
+                          | jq -r '.items[] | select(.metadata.name |startswith( "capstone-nginx-")) \
+                          | .status.loadBalancer.ingress[].hostname')
+            echo "Existing cluster name: ${SVC_ENDPOINT}"
+            curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/serviceendpoint" -d "${SVC_ENDPOINT}"
       
+      - destroy-environment:
+          run_when: on_fail
+          cluster_name: capstone-cluster-${CIRCLE_WORKFLOW_ID:0:7}
+   
   smoke-tests:
     docker:
       - image: python:3.7.3-stretch
@@ -132,13 +165,26 @@ jobs:
               echo "Application check failed"
               #exit 1
             fi
+  
+  cleanup-old-deployment:
+    docker:
+      - image: cimg/aws:2022.09.1
+    steps:
+      - run:
+          name: Install kubectl
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - run:
+          name: Fetch old cluster name
+          command: |
+            OLD_CLUSTER=$(curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername")
+            echo ${OLD_CLUSTER}
+      - destroy-environment:
+          run_when: on_success
+          cluster_name: "${OLD_CLUSTER}"
 
-            
-
-
-
-      
-      
+       
 # Workflow definitions
 workflows:
   deploy:
@@ -153,4 +199,6 @@ workflows:
       - smoke-tests:
           requires:
             - create-and-deploy
-      
+      - cleanup-old-deployment:
+          requires:
+            - smoke-tests

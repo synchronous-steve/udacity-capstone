@@ -24,8 +24,8 @@
         sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
         #kubectl version --client
 
-    - name: "Create cluster"
-      shell: "eksctl create cluster --name deployment-{{ cluster_suffix[0:7] }} --nodes=2 --region us-east-1 --zones us-east-1a,us-east-1b,us-east-1c"
+    - name: "Create cluster....takes a few minutes to complete"
+      shell: "eksctl create cluster --name capstone-cluster-{{ cluster_suffix[0:7] }} --nodes=2 --region us-east-1 --zones us-east-1a,us-east-1b,us-east-1c"
       register: "output"
 
     - debug: var=output.stdout_lines
