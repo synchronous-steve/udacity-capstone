@@ -113,15 +113,26 @@ jobs:
       # - destroy-environment:
       #     run_when: on_fail
       
-  - smoke-tests:
-      docker:
-        - image: python:3.7.3-stretch
-      steps:
-        - run:
-            name: Install prereqs
-            command: |
-              apt-get update
-              apt-get install curl
+  smoke-tests:
+    docker:
+      - image: python:3.7.3-stretch
+    steps:
+      - run:
+          name: Install prereqs
+          command: |
+            apt-get update
+            apt-get install curl -y
+      - run:
+          name: Check connectivity to application
+          command: |
+            if curl -s http://www.google.com | grep 'Celebrating Andrew Watson'
+              then
+                echo "Application check passed"
+            else
+              echo "Application check failed"
+              #exit 1
+            fi
+
             
 
 
@@ -140,5 +151,6 @@ workflows:
           requires:
             - build-docker-image
       - smoke-tests:
-
+          requires:
+            - create-and-deploy
       
