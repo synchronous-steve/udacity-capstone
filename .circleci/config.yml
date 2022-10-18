@@ -3,6 +3,18 @@ version: 2.1
 
 # Command definitions
 #commands:
+  # destroy-environment:
+  #   description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
+  #   parameters:
+  #     run_when:
+  #       type: string
+  #       default: on_fail
+  #   steps:
+  #     - run:
+  #         name: Delete namespace (should destroy all child objects)
+  #         when: << parameters.run_when >>
+  #         command: |
+  #           kubectl delete ns -n udacity-capstone
     
 # Job definitions
 jobs:
@@ -14,6 +26,7 @@ jobs:
       - run:
           name: Setup lint environment
           command: |
+            ls
             make setup
       - run:
           name: Run lint checks
@@ -28,17 +41,18 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 20.10.18
-          #docker_layer_caching: true # cost per run
 
-      # Build image and list built image thereafter    
+      # Build image and list built image    
       - run: |
           sudo docker build -t cap-test .
           sudo docker image ls | grep cap-test
+
       # run the container detatched and list running containers
       - run: |
           sudo docker run -d --name cap-app-test -p 8000:80 cap-test
           sudo docker ps
-      # Check the container is running OK and retuns a 220 response    
+
+      # Check the container is running OK and returns a 200 response    
       - run: |
           SERVICE_STATUS=$(sudo docker exec cap-app-test \
                           curl -I -s -o /dev/null -w "%{http_code}" \
@@ -47,19 +61,20 @@ jobs:
           if [ "${SERVICE_STATUS}" == '200' ]
             then
               echo "Success code 200 received"
-          else
+          elses
             echo "Service test failed"
             exit 1
           fi
+
       # push the image to ECR registry
       - run: | 
           aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 053645246680.dkr.ecr.us-east-1.amazonaws.com
           sudo docker tag cap-test:latest 053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
           sudo docker push 053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
 
-  create-eks-cluster:
+  create-and-deploy:
     docker:
-      - image: python:3.11-rc-alpine
+      - image: cimg/aws:2022.09.1 #python:3.7.3-stretch #python:3.11-rc-alpine
     steps:
       - checkout
       # - attach_workspace:
@@ -67,8 +82,9 @@ jobs:
       - run:
           name: Install Ansible
           command: |
+            sudo apt-get update
             echo "installing Ansible"
-            apk add --update ansible
+            sudo apt-get install ansible -y #apk add --update ansible
             # cat .circleci/ansible/inventory.txt
       # - run:
       #     name: Export Suffix for Cluster ID
@@ -76,9 +92,40 @@ jobs:
       #       export CLUSTER_SUFFIX='${CIRCLE_WORKFLOW_ID:0:7}'
       - run:
           name: Create EKS cluster using eksctl tool
+          no_output_timeout: 25m
           command: |
             cd ansible/
             ansible-playbook create-eks-cluster.yml
+      # Perform kubectl commands
+      - run:
+          name: List cluster nodes
+          command: |
+            #aws eks --region us-east-1 update-kubeconfig --name deployment-${CIRCLE_WORKFLOW_ID}
+            kubectl get nodes
+      # Deploy application to EKS cluster      
+      - run:
+          name: Deploy k8s manifests to cluster
+          command: |
+            kubectl apply -f k8s_manifests/
+            kubectl -n udacity-capstone rollout status deployment capstone-project
+
+      # Destroy infrastructure and revert migration on failure
+      # - destroy-environment:
+      #     run_when: on_fail
+      
+  - smoke-tests:
+      docker:
+        - image: python:3.7.3-stretch
+      steps:
+        - run:
+            name: Install prereqs
+            command: |
+              apt-get update
+              apt-get install curl
+            
+
+
+
       
       
 # Workflow definitions
@@ -89,7 +136,9 @@ workflows:
       - build-docker-image:
           requires:
             - lint-code
-      - create-eks-cluster:
+      - create-and-deploy:
           requires:
             - build-docker-image
+      - smoke-tests:
+
       

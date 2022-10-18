@@ -1,14 +1,31 @@
 ---
   - name: "EKS Cluster Creation Playbook"
     hosts: localhost
-    #connection: local 
+    environment:
+      AWS_ACCESS_KEY_ID: "{{ lookup('env', 'AWS_ACCESS_KEY_ID')}}"
+      AWS_SECRET_ACCESS_KEY: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY')}}"
+      AWS_DEFAULT_REGION: "{{ lookup('env', 'AWS_DEFAULT_REGION')}}"
     
     tasks:
     - set_fact:
-        cluster_suffix: "{{ lookup('env', '${CIRCLE_WORKFLOW_ID:0:7}')}}"  # 
+        cluster_suffix: "{{ lookup('env', 'CIRCLE_WORKFLOW_ID') }}"  #update var here
 
-    - name: "create cluster"
-      shell: "eksctl create cluster --name deployment_{{cluster_suffix}} --nodes=2 --region us-east-1 --zones us-east-1a,us-east-1b,us-east-1c"
+    - debug: var=cluster_suffix
+
+    - name: Fetch and configure eksctl tool
+      shell: |
+        curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Linux_amd64.tar.gz" \
+           | tar xz -C /tmp
+        sudo mv /tmp/eksctl /usr/local/bin
+
+    - name: Install kubectl
+      shell: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+        #kubectl version --client
+
+    - name: "Create cluster"
+      shell: "eksctl create cluster --name deployment-{{ cluster_suffix[0:7] }} --nodes=2 --region us-east-1 --zones us-east-1a,us-east-1b,us-east-1c"
       register: "output"
 
     - debug: var=output.stdout_lines

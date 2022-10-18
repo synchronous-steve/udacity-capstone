@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capstone-project
+  namespace: udacity-capstone
+  labels:
+    app: capstone-nginx-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: capstone-nginx-app
+  template:
+    metadata:
+      labels:
+        app: capstone-nginx-app
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+                - arm64
+      containers:
+      - name: capstone-nginx-app
+        image: 053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+        ports:
+        - name: http
+          containerPort: 80
+        imagePullPolicy: IfNotPresent
+      nodeSelector:
+        kubernetes.io/os: linux
