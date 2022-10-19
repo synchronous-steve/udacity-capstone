@@ -13,7 +13,7 @@ commands:
         type: string
     steps:
       - run:
-          name: Configure kubce config for target cluster
+          name: Update kubectl config for target cluster
           command: |
             echo << parameters.cluster_name >>
             aws eks --region us-east-1 update-kubeconfig --name << parameters.cluster_name >>
@@ -21,7 +21,8 @@ commands:
           name: Delete namespace (should destroy all child objects)
           when: << parameters.run_when >>
           command: |
-            kubectl delete ns -n udacity-capstone
+            echo "Deleting namespace on: $(kubectl config current-context)""
+            kubectl delete ns udacity-capstone
       - run:
           name: Delete EKS cluster
           when: << parameters.run_when >>
@@ -32,7 +33,7 @@ commands:
 jobs:
   lint-code:
     docker:
-      - image: python:3.7.3-stretch #ubuntu:18.04
+      - image: python:3.7.3-stretch
     steps:
       - checkout
       - run:
@@ -73,24 +74,22 @@ jobs:
           if [ "${SERVICE_STATUS}" == '200' ]
             then
               echo "Success code 200 received"
-          elses
+          else
             echo "Service test failed"
             exit 1
           fi
 
       # push the image to ECR registry
       - run: | 
-          aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 053645246680.dkr.ecr.us-east-1.amazonaws.com
-          sudo docker tag cap-test:latest 053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
-          sudo docker push 053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+          aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 990469894386.dkr.ecr.us-east-1.amazonaws.com #053645246680.dkr.ecr.us-east-1.amazonaws.com
+          sudo docker tag cap-test:latest 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest #053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+          sudo docker push 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test #053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
 
   create-and-deploy:
     docker:
-      - image: cimg/aws:2022.09.1 #python:3.7.3-stretch #python:3.11-rc-alpine
+      - image: cimg/aws:2022.09.1
     steps:
       - checkout
-      # - attach_workspace:
-      #     at: ~/
       - run:
           name: Install Ansible
           command: |
@@ -100,6 +99,10 @@ jobs:
       - run:
           name: Record name of existing cluster
           command: |
+            echo "ID: $AWS_ACCESS_KEY_ID"
+            echo "secret: $AWS_SECRET_ACCESS_KEY"
+            echo "reg: $AWS_DEFAULT_REGION"
+
             EXISTING_CLUSTER=$(aws eks list-clusters | jq -r '.clusters[]|select(. | startswith("capstone-cluster-"))')
             echo "Existing cluster name: ${EXISTING_CLUSTER}"
             curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername" -d "${EXISTING_CLUSTER}"
@@ -137,8 +140,7 @@ jobs:
           name: Record name of load balancer endpoint
           command: |
             SVC_ENDPOINT=$(kubectl -n udacity-capstone get svc -o json \
-                          | jq -r '.items[] | select(.metadata.name |startswith( "capstone-nginx-")) \
-                          | .status.loadBalancer.ingress[].hostname')
+                          | jq -r '.items[] | select(.metadata.name | startswith( "capstone-nginx-")) | .status.loadBalancer.ingress[].hostname')
             echo "Existing cluster name: ${SVC_ENDPOINT}"
             curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/serviceendpoint" -d "${SVC_ENDPOINT}"
       
@@ -158,12 +160,27 @@ jobs:
       - run:
           name: Check connectivity to application
           command: |
-            if curl -s http://www.google.com | grep 'Celebrating Andrew Watson'
+            SVC_ENDPOINT="$(curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/serviceendpoint")"
+            ATTEMPTS=0
+            PASSED=false
+
+            while  [ ! ${PASSED} = true ] && [ $ATTEMPTS -lt 7 ]
+            do 
+              ATTEMPTS=$((ATTEMPTS+1))
+              echo "waiting for load balancer service to come up"
+              if curl -s http://${SVC_ENDPOINT}:8000 | grep 'Stephen Bold'
+                then
+                  PASSED=true
+              fi
+              sleep 15
+            done
+
+            if ${PASSED} = true
               then
                 echo "Application check passed"
-            else
-              echo "Application check failed"
-              #exit 1
+              else
+                echo "Application check failed to test successfully over 105 seconds"
+                exit 1
             fi
   
   cleanup-old-deployment:

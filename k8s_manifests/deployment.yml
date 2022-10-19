@@ -27,7 +27,7 @@ spec:
                 - arm64
       containers:
       - name: capstone-nginx-app
-        image: 053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+        image: 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
         ports:
         - name: http
           containerPort: 80
