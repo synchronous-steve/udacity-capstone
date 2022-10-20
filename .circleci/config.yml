@@ -124,6 +124,11 @@ jobs:
             sudo apt-get update
             echo "installing Ansible"
             sudo apt-get install ansible -y
+      # - run:
+      #     name: Install kubectl
+      #     command: |
+      #       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      #       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       - run:
           name: Record name of existing cluster
           command: |
@@ -136,7 +141,7 @@ jobs:
             curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername" -d "${EXISTING_CLUSTER}"
       - run:
           name: Create EKS cluster using eksctl tool
-          no_output_timeout: 30m
+          no_output_timeout: 5m
           command: |
             cd ansible/
             ansible-playbook create-eks-cluster.yml
