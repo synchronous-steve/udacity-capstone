@@ -95,7 +95,7 @@ jobs:
 
       # Check the container is running OK and returns a 200 response    
       - run: |
-          SERVICE_STATUS=$(sudo docker exec cap-app-test \
+          SERVICE_STATUS=$(docker exec cap-app-test \
                           curl -I -s -o /dev/null -w "%{http_code}" \
                           --retry 4 --retry-connrefused http://localhost:80)
           
