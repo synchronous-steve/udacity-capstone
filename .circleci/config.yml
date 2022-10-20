@@ -109,9 +109,9 @@ jobs:
 
       # push the image to ECR registry
       - run: | 
-          aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 990469894386.dkr.ecr.us-east-1.amazonaws.com
-          sudo docker tag cap-test:latest 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
-          sudo docker push 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 990469894386.dkr.ecr.us-east-1.amazonaws.com
+          docker tag cap-test:latest 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+          docker push 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
 
   create-and-deploy:
     docker:
