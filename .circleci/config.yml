@@ -81,13 +81,17 @@ jobs:
 
       # Build image and list built image    
       - run: |
-          sudo docker build -t cap-test .
-          sudo docker image ls | grep cap-test
+          docker build -t cap-test .
+          docker image ls | grep cap-test
+          #sudo docker build -t cap-test . 
+          #sudo docker image ls | grep cap-test
 
       # run the container detatched and list running containers
       - run: |
-          sudo docker run -d --name cap-app-test -p 8000:80 cap-test
-          sudo docker ps
+          docker run -d --name cap-app-test -p 8000:80 cap-test
+          docker ps
+          #sudo docker run -d --name cap-app-test -p 8000:80 cap-test
+          #sudo docker ps
 
       # Check the container is running OK and returns a 200 response    
       - run: |
