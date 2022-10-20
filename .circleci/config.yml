@@ -9,25 +9,49 @@ commands:
       run_when:
         type: string
         default: on_fail
-      cluster_name:
+      deployment_target:
         type: string
     steps:
       - run:
           name: Update kubectl config for target cluster
+          when: << parameters.run_when >>
           command: |
-            echo << parameters.cluster_name >>
-            aws eks --region us-east-1 update-kubeconfig --name << parameters.cluster_name >>
+            if [ << parameters.deployment_target >> == "old" ]
+              then
+                TARGET_CLUSTER=$(curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername")
+            elif [ << parameters.deployment_target >> == "current" ]
+              then
+                TARGET_CLUSTER="capstone-cluster-${CIRCLE_WORKFLOW_ID:0:7}"
+            fi
+
+            echo "Target cluster: ${TARGET_CLUSTER}"
+            aws eks --region us-east-1 update-kubeconfig --name ${TARGET_CLUSTER}
       - run:
           name: Delete namespace (should destroy all child objects)
           when: << parameters.run_when >>
           command: |
-            echo "Deleting namespace on: $(kubectl config current-context)""
-            kubectl delete ns udacity-capstone
+            if kubectl get ns udacity-capstone
+              then
+                echo "Deleting namespace on: $(kubectl config current-context)"
+                kubectl delete ns udacity-capstone
+              else
+                echo "Namespace not found on: $(kubectl config current-context)"
+            fi
       - run:
           name: Delete EKS cluster
+          no_output_timeout: 30m
           when: << parameters.run_when >>
           command: |
-            eksctl delete cluster --name << parameters.cluster_name >>
+            if [ << parameters.deployment_target >> == "old" ]
+              then
+                TARGET_CLUSTER=$(curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername")
+              else
+                TARGET_CLUSTER="capstone-cluster-${CIRCLE_WORKFLOW_ID:0:7}"
+            fi
+
+            echo ${TARGET_CLUSTER}
+
+            eksctl delete cluster --name ${TARGET_CLUSTER}
     
 # Job definitions
 jobs:
@@ -81,9 +105,9 @@ jobs:
 
       # push the image to ECR registry
       - run: | 
-          aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 990469894386.dkr.ecr.us-east-1.amazonaws.com #053645246680.dkr.ecr.us-east-1.amazonaws.com
-          sudo docker tag cap-test:latest 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest #053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
-          sudo docker push 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test #053645246680.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+          aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 990469894386.dkr.ecr.us-east-1.amazonaws.com
+          sudo docker tag cap-test:latest 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
+          sudo docker push 990469894386.dkr.ecr.us-east-1.amazonaws.com/cap-test:latest
 
   create-and-deploy:
     docker:
@@ -108,7 +132,7 @@ jobs:
             curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername" -d "${EXISTING_CLUSTER}"
       - run:
           name: Create EKS cluster using eksctl tool
-          no_output_timeout: 25m
+          no_output_timeout: 30m
           command: |
             cd ansible/
             ansible-playbook create-eks-cluster.yml
@@ -116,7 +140,6 @@ jobs:
       - run:
           name: List cluster nodes
           command: |
-            #aws eks --region us-east-1 update-kubeconfig --name capstone-cluster-${CIRCLE_WORKFLOW_ID}
             kubectl get nodes
       # Deploy application to EKS cluster      
       - run:
@@ -139,14 +162,20 @@ jobs:
       - run:
           name: Record name of load balancer endpoint
           command: |
+            sleep 5 
+            SVC_WAIT=2
+            # while [[ -z $(kubectl -n udacity-capstone get svc -o json | jq -r '.items[] | select(.metadata.name | startswith( "capstone-nginx-"))') ]]
+            #   do
+            #     echo "waiting for k8s service to be available.."
+            #     sleep 2
             SVC_ENDPOINT=$(kubectl -n udacity-capstone get svc -o json \
                           | jq -r '.items[] | select(.metadata.name | startswith( "capstone-nginx-")) | .status.loadBalancer.ingress[].hostname')
-            echo "Existing cluster name: ${SVC_ENDPOINT}"
+            echo "Service Endpoint: ${SVC_ENDPOINT}"
             curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/serviceendpoint" -d "${SVC_ENDPOINT}"
       
       - destroy-environment:
           run_when: on_fail
-          cluster_name: capstone-cluster-${CIRCLE_WORKFLOW_ID:0:7}
+          deployment_target: current
    
   smoke-tests:
     docker:
@@ -193,15 +222,20 @@ jobs:
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       - run:
-          name: Fetch old cluster name
+          name: Install eksctl
           command: |
-            OLD_CLUSTER=$(curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername")
-            echo ${OLD_CLUSTER}
+            curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Linux_amd64.tar.gz" \
+            | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+      # - run:
+      #     name: Fetch old cluster name
+      #     command: |
+      #       export OLD_CLUSTER=$(curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername")
+      #       echo ${OLD_CLUSTER}
       - destroy-environment:
           run_when: on_success
-          cluster_name: "${OLD_CLUSTER}"
-
-       
+          deployment_target: old
+   
 # Workflow definitions
 workflows:
   deploy:
@@ -213,6 +247,10 @@ workflows:
       - create-and-deploy:
           requires:
             - build-docker-image
+          filters:
+            branches:
+              only:
+                - main
       - smoke-tests:
           requires:
             - create-and-deploy
