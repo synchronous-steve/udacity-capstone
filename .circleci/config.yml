@@ -14,11 +14,13 @@ commands:
     steps:
       - run:
           name: Install kubectl
+          when: << parameters.run_when >>
           command: |
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       - run:
           name: Install eksctl
+          when: << parameters.run_when >>
           command: |
             curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Linux_amd64.tar.gz" \
             | tar xz -C /tmp
@@ -207,8 +209,8 @@ jobs:
       - run:
           name: Install prereqs
           command: |
-            apt-get update
-            apt-get install curl -y
+            sudo apt-get update
+            sudo apt-get install curl -y
       - run:
           name: Check connectivity to application
           command: |
@@ -216,7 +218,7 @@ jobs:
             ATTEMPTS=0
             PASSED=false
 
-            while  [ ! ${PASSED} = true ] && [ $ATTEMPTS -lt 8 ]
+            while  [ ! ${PASSED} = true ] && [ $ATTEMPTS -lt 2 ]
             do 
               ATTEMPTS=$((ATTEMPTS+1))
               echo "waiting for load balancer service to come up"
