@@ -152,9 +152,6 @@ jobs:
       - run:
           name: Record name of existing cluster
           command: |
-            echo "ID: $AWS_ACCESS_KEY_ID"
-            echo "secret: $AWS_SECRET_ACCESS_KEY"
-            echo "reg: $AWS_DEFAULT_REGION"
 
             EXISTING_CLUSTER=$(aws eks list-clusters | jq -r '.clusters[]|select(. | startswith("capstone-cluster-"))')
             echo "Existing cluster name: ${EXISTING_CLUSTER}"
@@ -249,22 +246,6 @@ jobs:
     docker:
       - image: cimg/aws:2022.09.1
     steps:
-      # - run:
-      #     name: Install kubectl
-      #     command: |
-      #       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      #       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      # - run:
-      #     name: Install eksctl
-      #     command: |
-      #       curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Linux_amd64.tar.gz" \
-      #       | tar xz -C /tmp
-      #       sudo mv /tmp/eksctl /usr/local/bin
-      # - run:
-      #     name: Fetch old cluster name
-      #     command: |
-      #       export OLD_CLUSTER=$(curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername")
-      #       echo ${OLD_CLUSTER}
       - destroy-environment:
           run_when: on_success
           deployment_target: old
