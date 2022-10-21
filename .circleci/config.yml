@@ -70,9 +70,14 @@ commands:
                 TARGET_CLUSTER="capstone-cluster-${CIRCLE_WORKFLOW_ID:0:7}"
             fi
 
-            echo ${TARGET_CLUSTER}
+            echo "Target cluster: " ${TARGET_CLUSTER}
 
-            eksctl delete cluster --name ${TARGET_CLUSTER}
+            if [ -n "${TARGET_CLUSTER}" ]
+            then
+              eksctl delete cluster --name ${TARGET_CLUSTER}
+            else
+              echo "No cluster to cleanup"
+            fi
     
 # Job definitions
 jobs:
@@ -94,7 +99,6 @@ jobs:
   build-docker-image:
     docker:
       - image: cimg/aws:2022.09.1 #cimg/base:2022.10
-        #user: root
     steps:
       - checkout
       - setup_remote_docker:
@@ -218,7 +222,7 @@ jobs:
             ATTEMPTS=0
             PASSED=false
 
-            while  [ ! ${PASSED} = true ] && [ $ATTEMPTS -lt 18 ]
+            while  [ ! ${PASSED} = true ] && [ $ATTEMPTS -lt 12 ]
             do 
               ATTEMPTS=$((ATTEMPTS+1))
               echo "waiting for load balancer service to come up"
@@ -234,7 +238,7 @@ jobs:
               then
                 echo "Application check passed"
               else
-                echo "Application check failed to test successfully over 120 seconds"
+                echo "Application check failed to test successfully over 3 minutes"
                 exit 1
             fi
       - destroy-environment:
