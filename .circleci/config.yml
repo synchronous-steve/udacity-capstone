@@ -209,6 +209,7 @@ jobs:
             do 
               ATTEMPTS=$((ATTEMPTS+1))
               echo "waiting for load balancer service to come up"
+              echo "TARGET: ${SVC_ENDPOINT}:8000"
               if curl -s http://${SVC_ENDPOINT}:8000 | grep 'Stephen Bold'
                 then
                   PASSED=true
@@ -223,6 +224,11 @@ jobs:
                 echo "Application check failed to test successfully over 105 seconds"
                 exit 1
             fi
+
+      - destroy-environment:
+        run_when: on_fail
+        deployment_target: current
+    
   
   cleanup-old-deployment:
     docker:
