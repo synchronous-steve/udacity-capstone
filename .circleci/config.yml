@@ -141,7 +141,7 @@ jobs:
             curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername" -d "${EXISTING_CLUSTER}"
       - run:
           name: Create EKS cluster using eksctl tool
-          no_output_timeout: 5m
+          no_output_timeout: 30m
           command: |
             cd ansible/
             ansible-playbook create-eks-cluster.yml
