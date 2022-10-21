@@ -13,6 +13,17 @@ commands:
         type: string
     steps:
       - run:
+          name: Install kubectl
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - run:
+          name: Install eksctl
+          command: |
+            curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Linux_amd64.tar.gz" \
+            | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+      - run:
           name: Update kubectl config for target cluster
           when: << parameters.run_when >>
           command: |
@@ -191,7 +202,7 @@ jobs:
    
   smoke-tests:
     docker:
-      - image: python:3.7.3-stretch
+      - image: cimg/aws:2022.09.1 #python:3.7.3-stretch
     steps:
       - run:
           name: Install prereqs
@@ -205,7 +216,7 @@ jobs:
             ATTEMPTS=0
             PASSED=false
 
-            while  [ ! ${PASSED} = true ] && [ $ATTEMPTS -lt 7 ]
+            while  [ ! ${PASSED} = true ] && [ $ATTEMPTS -lt 8 ]
             do 
               ATTEMPTS=$((ATTEMPTS+1))
               echo "waiting for load balancer service to come up"
@@ -221,30 +232,28 @@ jobs:
               then
                 echo "Application check passed"
               else
-                echo "Application check failed to test successfully over 105 seconds"
+                echo "Application check failed to test successfully over 120 seconds"
                 exit 1
             fi
-
       - destroy-environment:
           run_when: on_fail
           deployment_target: current
     
-  
   cleanup-old-deployment:
     docker:
       - image: cimg/aws:2022.09.1
     steps:
-      - run:
-          name: Install kubectl
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      - run:
-          name: Install eksctl
-          command: |
-            curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Linux_amd64.tar.gz" \
-            | tar xz -C /tmp
-            sudo mv /tmp/eksctl /usr/local/bin
+      # - run:
+      #     name: Install kubectl
+      #     command: |
+      #       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      #       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      # - run:
+      #     name: Install eksctl
+      #     command: |
+      #       curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.114.0/eksctl_Linux_amd64.tar.gz" \
+      #       | tar xz -C /tmp
+      #       sudo mv /tmp/eksctl /usr/local/bin
       # - run:
       #     name: Fetch old cluster name
       #     command: |
