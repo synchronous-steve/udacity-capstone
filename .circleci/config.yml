@@ -19,13 +19,21 @@ commands:
             if [ << parameters.deployment_target >> == "old" ]
               then
                 TARGET_CLUSTER=$(curl -k "https://kvdb.io/W731k82q3QKRA74QoPjp86/previousclustername")
+                
+                if [ -n "${TARGET_CLUSTER}" ]
+                  then
+                    echo "Destroy previous deployment: ${TARGET_CLUSTER}"
+                    aws eks --region us-east-1 update-kubeconfig --name ${TARGET_CLUSTER}
+                  else
+                    echo "No old deployment to clean up"
+                    exit 0
+                fi
             elif [ << parameters.deployment_target >> == "current" ]
               then
                 TARGET_CLUSTER="capstone-cluster-${CIRCLE_WORKFLOW_ID:0:7}"
+                echo "Destroy current deployment: ${TARGET_CLUSTER}"
+                aws eks --region us-east-1 update-kubeconfig --name ${TARGET_CLUSTER}
             fi
-
-            echo "Target cluster: ${TARGET_CLUSTER}"
-            aws eks --region us-east-1 update-kubeconfig --name ${TARGET_CLUSTER}
       - run:
           name: Delete namespace (should destroy all child objects)
           when: << parameters.run_when >>
@@ -124,11 +132,6 @@ jobs:
             sudo apt-get update
             echo "installing Ansible"
             sudo apt-get install ansible -y
-      # - run:
-      #     name: Install kubectl
-      #     command: |
-      #       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      #       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       - run:
           name: Record name of existing cluster
           command: |

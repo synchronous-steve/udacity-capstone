@@ -8,7 +8,7 @@
     
     tasks:
     - set_fact:
-        cluster_suffix: "{{ lookup('env', 'CIRCLE_WORKFLOW_ID') }}"  #update var here
+        cluster_suffix: "{{ lookup('env', 'CIRCLE_WORKFLOW_ID') }}"
 
     - debug: var=cluster_suffix
 
@@ -23,9 +23,6 @@
         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
         sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
         #kubectl version --client
-      register: "out"
-
-    - debug: var=out.stdout_lines
 
     - name: "Create cluster....takes a few minutes to complete"
       shell: "eksctl create cluster --name capstone-cluster-{{ cluster_suffix[0:7] }} --nodes=2 --region us-east-1 --zones us-east-1a,us-east-1b,us-east-1c"
