@@ -226,8 +226,8 @@ jobs:
             fi
 
       - destroy-environment:
-        run_when: on_fail
-        deployment_target: current
+          run_when: on_fail
+          deployment_target: current
     
   
   cleanup-old-deployment:
