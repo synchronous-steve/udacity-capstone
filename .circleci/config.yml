@@ -218,7 +218,7 @@ jobs:
             ATTEMPTS=0
             PASSED=false
 
-            while  [ ! ${PASSED} = true ] && [ $ATTEMPTS -lt 8 ]
+            while  [ ! ${PASSED} = true ] && [ $ATTEMPTS -lt 18 ]
             do 
               ATTEMPTS=$((ATTEMPTS+1))
               echo "waiting for load balancer service to come up"
